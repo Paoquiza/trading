@@ -8,6 +8,7 @@ import { TradesPage } from './pages/Trades'
 import { TradeDetailPage } from './pages/TradeDetail'
 import { NotesPage } from './pages/Notes'
 import { CalculatorPage } from './pages/Calculator'
+import { SettingsPage } from './pages/Settings'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/trades/:id" element={<TradeDetailPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/calculator" element={<CalculatorPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -4,21 +4,31 @@ import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
 import { NoteEditor } from '../components/notes/NoteEditor'
 import { DailyNotesList } from '../components/notes/DailyNotesList'
+import { DailySessionSummary } from '../components/notes/DailySessionSummary'
+import { ImageUploader } from '../components/images/ImageUploader'
+import { ImageGallery } from '../components/images/ImageGallery'
 import { useDailyNotes } from '../hooks/useDailyNotes'
+import { useNoteImages } from '../hooks/useNoteImages'
+import { useTrades } from '../hooks/useTrades'
 import { toInputDate, formatDate } from '../lib/formatters'
 
 export function NotesPage() {
   const { notes, loading, getNote, saveNote } = useDailyNotes()
+  const { trades } = useTrades()
   const [selectedDate, setSelectedDate] = useState(toInputDate(new Date()))
   const [currentContent, setCurrentContent] = useState('')
+  const [currentNoteId, setCurrentNoteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadingNote, setLoadingNote] = useState(false)
+
+  const { images, uploading, uploadImage, deleteImage } = useNoteImages(currentNoteId, selectedDate)
 
   useEffect(() => {
     const loadNote = async () => {
       setLoadingNote(true)
       const note = await getNote(selectedDate)
       setCurrentContent(note?.content ?? '')
+      setCurrentNoteId(note?.id ?? null)
       setLoadingNote(false)
     }
     loadNote()
@@ -26,9 +36,24 @@ export function NotesPage() {
 
   const handleSave = async (content: string) => {
     setSaving(true)
-    await saveNote(selectedDate, content)
+    const saved = await saveNote(selectedDate, content)
     setCurrentContent(content)
+    if (saved) setCurrentNoteId(saved.id)
     setSaving(false)
+  }
+
+  const handleUploadImage = async (file: File) => {
+    let noteId = currentNoteId
+
+    // Auto-save note to get note_id if it doesn't exist yet
+    if (!noteId) {
+      const saved = await saveNote(selectedDate, currentContent)
+      if (!saved) return
+      noteId = saved.id
+      setCurrentNoteId(saved.id)
+    }
+
+    await uploadImage(file, noteId)
   }
 
   return (
@@ -47,6 +72,8 @@ export function NotesPage() {
             <span className="text-dark-200 text-sm">{formatDate(selectedDate)}</span>
           </div>
 
+          <DailySessionSummary trades={trades} date={selectedDate} />
+
           <Card>
             {loadingNote ? (
               <div className="flex justify-center py-8">
@@ -55,6 +82,14 @@ export function NotesPage() {
             ) : (
               <NoteEditor content={currentContent} onSave={handleSave} saving={saving} />
             )}
+          </Card>
+
+          <Card>
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-dark-200">Screenshots</h3>
+              <ImageUploader onUpload={handleUploadImage} uploading={uploading} />
+              <ImageGallery images={images} onDelete={deleteImage} />
+            </div>
           </Card>
         </div>
 

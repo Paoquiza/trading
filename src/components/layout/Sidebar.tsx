@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, TrendingUp, BookOpen, Calculator, LogOut } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, BookOpen, Calculator, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const iconMap = {
@@ -7,6 +7,7 @@ const iconMap = {
   TrendingUp,
   BookOpen,
   Calculator,
+  Settings,
 }
 
 const navItems = [
@@ -14,6 +15,7 @@ const navItems = [
   { label: 'Trades', path: '/trades', icon: 'TrendingUp' as const },
   { label: 'Notes', path: '/notes', icon: 'BookOpen' as const },
   { label: 'Calculator', path: '/calculator', icon: 'Calculator' as const },
+  { label: 'Settings', path: '/settings', icon: 'Settings' as const },
 ]
 
 export function Sidebar() {

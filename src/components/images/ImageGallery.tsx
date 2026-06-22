@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { ImageLightbox } from './ImageLightbox'
-import type { TradeImage } from '../../lib/types'
 
-interface ImageGalleryProps {
-  images: TradeImage[]
-  onDelete?: (image: TradeImage) => void
+interface GalleryImage {
+  id: string
+  image_url: string
 }
 
-export function ImageGallery({ images, onDelete }: ImageGalleryProps) {
+interface ImageGalleryProps<T extends GalleryImage> {
+  images: T[]
+  onDelete?: (image: T) => void
+}
+
+export function ImageGallery<T extends GalleryImage>({ images, onDelete }: ImageGalleryProps<T>) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   if (images.length === 0) {

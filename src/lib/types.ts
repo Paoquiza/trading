@@ -67,3 +67,19 @@ export interface CalculatorResult {
   positionSize: number
   pipValue: number
 }
+
+export interface UserSettings {
+  id: string
+  user_id: string
+  max_trades_per_day: number
+  daily_loss_limit: number
+  daily_gain_limit: number
+}
+
+export interface NoteImage {
+  id: string
+  note_id: string
+  image_url: string
+  storage_path: string
+  created_at: string
+}

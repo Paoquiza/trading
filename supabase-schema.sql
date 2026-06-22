@@ -145,3 +145,75 @@ create policy "Users can delete own files"
     bucket_id = 'trade-screenshots'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ============================================
+-- User Settings (daily limits)
+-- ============================================
+
+create table if not exists public.user_settings (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id) on delete cascade not null unique,
+  max_trades_per_day int default 2,
+  daily_loss_limit numeric default 100,
+  daily_gain_limit numeric default 200,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.user_settings enable row level security;
+
+create policy "Users can view own settings"
+  on public.user_settings for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own settings"
+  on public.user_settings for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can update own settings"
+  on public.user_settings for update
+  using (auth.uid() = user_id);
+
+-- ============================================
+-- Note Images
+-- ============================================
+
+create table if not exists public.note_images (
+  id uuid default gen_random_uuid() primary key,
+  note_id uuid references public.daily_notes(id) on delete cascade not null,
+  image_url text not null,
+  storage_path text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.note_images enable row level security;
+
+create policy "Users can view own note images"
+  on public.note_images for select
+  using (
+    exists (
+      select 1 from public.daily_notes
+      where daily_notes.id = note_images.note_id
+        and daily_notes.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can insert own note images"
+  on public.note_images for insert
+  with check (
+    exists (
+      select 1 from public.daily_notes
+      where daily_notes.id = note_images.note_id
+        and daily_notes.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can delete own note images"
+  on public.note_images for delete
+  using (
+    exists (
+      select 1 from public.daily_notes
+      where daily_notes.id = note_images.note_id
+        and daily_notes.user_id = auth.uid()
+    )
+  );

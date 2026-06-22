@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
-import type { TradeImage } from '../../lib/types'
+
+interface LightboxImage {
+  id: string
+  image_url: string
+}
 
 interface ImageLightboxProps {
-  images: TradeImage[]
+  images: LightboxImage[]
   currentIndex: number
   onClose: () => void
   onNavigate: (index: number) => void
