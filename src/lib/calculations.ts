@@ -1,42 +1,68 @@
-import { JPY_PAIRS, PIP_VALUES } from './constants'
-import type { CalculatorInputs, CalculatorResult, Trade, TradeStats } from './types'
+import type { Trade, TradeStats } from './types'
+
+// XAU/USD: 1 standard lot = 100 troy ounces
+// P&L per $1 price move = lot_size × 100
+const GOLD_CONTRACT_SIZE = 100
 
 export function calculatePips(
-  pair: string,
   direction: 'buy' | 'sell',
   entryPrice: number,
   exitPrice: number
 ): number {
-  const isJpy = JPY_PAIRS.includes(pair)
-  const multiplier = isJpy ? 100 : 10000
+  // For gold, we measure in price points (dollars), not pips
   const diff = direction === 'buy'
-    ? (exitPrice - entryPrice) * multiplier
-    : (entryPrice - exitPrice) * multiplier
-  return Math.round(diff * 10) / 10
+    ? exitPrice - entryPrice
+    : entryPrice - exitPrice
+  return Math.round(diff * 1000) / 1000
 }
 
 export function calculateProfitLoss(
-  pair: string,
-  pips: number,
+  priceDiff: number,
   lotSize: number
 ): number {
-  const pipValue = PIP_VALUES[pair] ?? 10
-  return Math.round(pips * pipValue * lotSize * 100) / 100
+  // P&L = lot_size × 100 oz × price_difference
+  return Math.round(priceDiff * lotSize * GOLD_CONTRACT_SIZE * 100) / 100
 }
 
-export function calculatePositionSize(inputs: CalculatorInputs): CalculatorResult {
-  const { capital, riskPercent, stopLossPips, pair } = inputs
-  const maxLoss = capital * (riskPercent / 100)
-  const pipValue = PIP_VALUES[pair] ?? 10
+export interface SLTPResult {
+  slPrice: number
+  tpPrice: number
+  slDistance: number
+  tpDistance: number
+  riskAmount: number
+  potentialProfit: number
+}
 
-  // positionSize in standard lots
-  const positionSize = maxLoss / (stopLossPips * pipValue)
-  const roundedSize = Math.round(positionSize * 100) / 100
+export function calculateSLTP(
+  direction: 'buy' | 'sell',
+  entryPrice: number,
+  riskAmount: number,
+  lotSize: number,
+  ratio: number
+): SLTPResult {
+  // For XAU/USD: risk = lot_size × 100 × sl_distance
+  // So: sl_distance = risk_amount / (lot_size × 100)
+  const slDistance = riskAmount / (lotSize * GOLD_CONTRACT_SIZE)
+  const tpDistance = slDistance * ratio
+
+  let slPrice: number
+  let tpPrice: number
+
+  if (direction === 'buy') {
+    slPrice = entryPrice - slDistance
+    tpPrice = entryPrice + tpDistance
+  } else {
+    slPrice = entryPrice + slDistance
+    tpPrice = entryPrice - tpDistance
+  }
 
   return {
-    maxLoss: Math.round(maxLoss * 100) / 100,
-    positionSize: roundedSize,
-    pipValue,
+    slPrice: Math.round(slPrice * 1000) / 1000,
+    tpPrice: Math.round(tpPrice * 1000) / 1000,
+    slDistance: Math.round(slDistance * 1000) / 1000,
+    tpDistance: Math.round(tpDistance * 1000) / 1000,
+    riskAmount: Math.round(riskAmount * 100) / 100,
+    potentialProfit: Math.round(riskAmount * ratio * 100) / 100,
   }
 }
 

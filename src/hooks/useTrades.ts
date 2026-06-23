@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { calculatePips, calculateProfitLoss } from '../lib/calculations'
+import { calculatePips, calculateProfitLoss, calculateSLTP } from '../lib/calculations'
 import type { Trade, TradeInsert, TradeUpdate, TradeFilters } from '../lib/types'
 
 export function useTrades(filters?: TradeFilters) {
@@ -21,7 +21,6 @@ export function useTrades(filters?: TradeFilters) {
 
     if (filters?.dateFrom) query = query.gte('date', filters.dateFrom)
     if (filters?.dateTo) query = query.lte('date', filters.dateTo)
-    if (filters?.pair) query = query.eq('pair', filters.pair)
     if (filters?.result === 'winner') query = query.gt('profit_loss', 0)
     if (filters?.result === 'loser') query = query.lt('profit_loss', 0)
 
@@ -29,7 +28,7 @@ export function useTrades(filters?: TradeFilters) {
     if (error) console.error('Error fetching trades:', error)
     setTrades((data as Trade[]) ?? [])
     setLoading(false)
-  }, [user, filters?.dateFrom, filters?.dateTo, filters?.pair, filters?.result])
+  }, [user, filters?.dateFrom, filters?.dateTo, filters?.result])
 
   useEffect(() => { fetchTrades() }, [fetchTrades])
 
@@ -38,15 +37,39 @@ export function useTrades(filters?: TradeFilters) {
 
     let pips = trade.pips
     let profitLoss = trade.profit_loss
+    let stopLoss = trade.stop_loss
+    let takeProfit = trade.take_profit
 
+    // Auto-calculate SL/TP if risk parameters are provided
+    if (trade.risk_amount && trade.lot_size && trade.risk_reward_ratio) {
+      const sltp = calculateSLTP(
+        trade.direction,
+        trade.entry_price,
+        trade.risk_amount,
+        trade.lot_size,
+        trade.risk_reward_ratio
+      )
+      stopLoss = sltp.slPrice
+      takeProfit = sltp.tpPrice
+    }
+
+    // Auto-calculate pips & P&L for closed trades
     if (trade.status === 'closed' && trade.exit_price != null) {
-      pips = calculatePips(trade.pair, trade.direction, trade.entry_price, trade.exit_price)
-      profitLoss = calculateProfitLoss(trade.pair, pips, trade.lot_size)
+      pips = calculatePips(trade.direction, trade.entry_price, trade.exit_price)
+      profitLoss = calculateProfitLoss(pips, trade.lot_size)
     }
 
     const { data, error } = await supabase
       .from('trades')
-      .insert({ ...trade, user_id: user.id, pips, profit_loss: profitLoss })
+      .insert({
+        ...trade,
+        user_id: user.id,
+        pair: 'XAU/USD',
+        pips,
+        profit_loss: profitLoss,
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+      })
       .select()
       .single()
 
@@ -62,15 +85,38 @@ export function useTrades(filters?: TradeFilters) {
     const merged = { ...existing, ...updates }
     let pips = merged.pips
     let profitLoss = merged.profit_loss
+    let stopLoss = merged.stop_loss
+    let takeProfit = merged.take_profit
 
+    // Auto-calculate SL/TP if risk parameters are provided
+    if (merged.risk_amount && merged.lot_size && merged.risk_reward_ratio) {
+      const sltp = calculateSLTP(
+        merged.direction,
+        merged.entry_price,
+        merged.risk_amount,
+        merged.lot_size,
+        merged.risk_reward_ratio
+      )
+      stopLoss = sltp.slPrice
+      takeProfit = sltp.tpPrice
+    }
+
+    // Auto-calculate pips & P&L for closed trades
     if (merged.status === 'closed' && merged.exit_price != null) {
-      pips = calculatePips(merged.pair, merged.direction, merged.entry_price, merged.exit_price)
-      profitLoss = calculateProfitLoss(merged.pair, pips, merged.lot_size)
+      pips = calculatePips(merged.direction, merged.entry_price, merged.exit_price)
+      profitLoss = calculateProfitLoss(pips, merged.lot_size)
     }
 
     const { data, error } = await supabase
       .from('trades')
-      .update({ ...updates, pips, profit_loss: profitLoss })
+      .update({
+        ...updates,
+        pair: 'XAU/USD',
+        pips,
+        profit_loss: profitLoss,
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+      })
       .eq('id', id)
       .select()
       .single()

@@ -16,6 +16,9 @@ export interface Trade {
   stop_loss: number | null
   take_profit: number | null
   status: TradeStatus
+  balance: number | null
+  risk_amount: number | null
+  risk_reward_ratio: number | null
   created_at: string
 }
 
@@ -42,7 +45,6 @@ export interface DailyNote {
 export interface TradeFilters {
   dateFrom?: string
   dateTo?: string
-  pair?: string
   result?: 'winner' | 'loser' | 'all'
 }
 
@@ -55,25 +57,12 @@ export interface TradeStats {
   losers: number
 }
 
-export interface CalculatorInputs {
-  capital: number
-  riskPercent: number
-  stopLossPips: number
-  pair: string
-}
-
-export interface CalculatorResult {
-  maxLoss: number
-  positionSize: number
-  pipValue: number
-}
-
-export interface UserSettings {
-  id: string
-  user_id: string
-  max_trades_per_day: number
-  daily_loss_limit: number
-  daily_gain_limit: number
+export interface TradingRules {
+  balance: number
+  maxDailyLossPercent: number
+  maxDailyGainPercent: number
+  maxTradesPerDay: number
+  riskRewardRatio: number
 }
 
 export interface NoteImage {

@@ -4,9 +4,11 @@ import type { Trade } from '../../lib/types'
 interface TradeListProps {
   trades: Trade[]
   loading: boolean
+  onWin?: (trade: Trade) => void
+  onLoss?: (trade: Trade) => void
 }
 
-export function TradeList({ trades, loading }: TradeListProps) {
+export function TradeList({ trades, loading, onWin, onLoss }: TradeListProps) {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -27,7 +29,7 @@ export function TradeList({ trades, loading }: TradeListProps) {
   return (
     <div className="space-y-2">
       {trades.map(trade => (
-        <TradeCard key={trade.id} trade={trade} />
+        <TradeCard key={trade.id} trade={trade} onWin={onWin} onLoss={onLoss} />
       ))}
     </div>
   )

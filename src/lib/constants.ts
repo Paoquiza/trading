@@ -42,16 +42,3 @@ export const PIP_VALUES: Record<string, number> = {
   'XAU/USD': 10,
   'XAG/USD': 50,
 }
-
-export const LOT_SIZES = [
-  { label: 'Standard (1.00)', value: 1 },
-  { label: 'Mini (0.10)', value: 0.1 },
-  { label: 'Micro (0.01)', value: 0.01 },
-]
-
-export const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/', icon: 'LayoutDashboard' },
-  { label: 'Trades', path: '/trades', icon: 'TrendingUp' },
-  { label: 'Notes', path: '/notes', icon: 'BookOpen' },
-  { label: 'Calculator', path: '/calculator', icon: 'Calculator' },
-] as const

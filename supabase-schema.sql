@@ -20,8 +20,16 @@ create table if not exists public.trades (
   stop_loss numeric,
   take_profit numeric,
   status text not null default 'open' check (status in ('open', 'closed')),
+  balance numeric,
+  risk_amount numeric,
+  risk_reward_ratio numeric default 2,
   created_at timestamptz default now()
 );
+
+-- Migration for existing tables:
+-- ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS balance numeric;
+-- ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS risk_amount numeric;
+-- ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS risk_reward_ratio numeric DEFAULT 2;
 
 -- 2. Trade images table
 create table if not exists public.trade_images (

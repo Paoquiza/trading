@@ -1,5 +1,9 @@
 # Forex Trading Journal - Project Context
 
+## Overview
+
+Trading journal app for **XAU/USD (Gold)** with auto-calculated SL/TP, daily risk management, and balance tracking. Designed to track every trade, enforce daily rules, and help review performance over time.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -13,6 +17,7 @@
 | Dates | date-fns 4 |
 | Images | react-dropzone (drag & drop) |
 | Heatmap | react-calendar-heatmap |
+| Settings | localStorage (trading rules) |
 
 ---
 
@@ -21,32 +26,31 @@
 ```
 forex-journal/
 ├── src/
-│   ├── App.tsx                          # Router + route definitions
+│   ├── App.tsx                          # Router: /, /trades, /trades/:id, /notes, /settings
 │   ├── main.tsx                         # React entry point
 │   ├── index.css                        # Tailwind + custom dark theme
 │   ├── context/
 │   │   └── AuthContext.tsx              # Supabase auth provider + useAuth()
 │   ├── lib/
-│   │   ├── types.ts                    # All TypeScript interfaces
+│   │   ├── types.ts                    # Trade, TradingRules, TradeFilters, etc.
 │   │   ├── supabase.ts                 # Supabase client init
-│   │   ├── calculations.ts            # Pips, P&L, position sizing math
-│   │   ├── constants.ts               # Forex pairs, pip values, lot sizes
+│   │   ├── calculations.ts            # Gold SL/TP calc, pips, P&L, stats
+│   │   ├── constants.ts               # Forex pairs, pip values (legacy, unused)
 │   │   └── formatters.ts              # Currency, pips, date, color formatters
 │   ├── hooks/
-│   │   ├── useTrades.ts               # Trade CRUD + auto pips/P&L calc
+│   │   ├── useTrades.ts               # Trade CRUD + auto SL/TP + pips/P&L calc
 │   │   ├── useTradeImages.ts          # Trade screenshot upload/delete
 │   │   ├── useTradeStats.ts           # Stats, equity curve, daily P&L
 │   │   ├── useDailyNotes.ts           # Notes CRUD (upsert by date)
 │   │   ├── useNoteImages.ts           # Note screenshot upload/delete
-│   │   └── useSettings.ts             # User settings CRUD (daily limits)
+│   │   └── useSettings.ts             # TradingRules from localStorage + updateBalance
 │   ├── pages/
 │   │   ├── Login.tsx                   # Sign in / Sign up
-│   │   ├── Dashboard.tsx               # Stats, equity chart, heatmap
-│   │   ├── Trades.tsx                  # Trade list + filters + new trade modal
-│   │   ├── TradeDetail.tsx             # Single trade view + screenshots
+│   │   ├── Dashboard.tsx               # Stats, equity chart, heatmap, recent trades
+│   │   ├── Trades.tsx                  # Trade list + daily limits + win/loss buttons
+│   │   ├── TradeDetail.tsx             # Single trade view + screenshots + edit
 │   │   ├── Notes.tsx                   # Daily notes + session summary + screenshots
-│   │   ├── Calculator.tsx              # Risk/position size calculator
-│   │   └── Settings.tsx                # Daily limit settings
+│   │   └── Settings.tsx                # Trading rules configuration
 │   └── components/
 │       ├── ui/                         # Reusable UI primitives
 │       │   ├── Button.tsx              # variant: primary|secondary|danger|ghost
@@ -57,15 +61,14 @@ forex-journal/
 │       │   └── Modal.tsx               # Centered overlay modal
 │       ├── layout/
 │       │   ├── AppLayout.tsx           # Sidebar + Outlet
-│       │   ├── Sidebar.tsx             # Nav links + sign out
+│       │   ├── Sidebar.tsx             # Nav: Dashboard, Trades, Notes, Settings
 │       │   └── ProtectedRoute.tsx      # Auth guard → redirect /login
 │       ├── trade/
-│       │   ├── TradeForm.tsx           # Create/edit trade form
-│       │   ├── TradeCard.tsx           # Trade row → links to /trades/:id
+│       │   ├── TradeForm.tsx           # Create/edit form with auto-calc SL/TP
+│       │   ├── TradeCard.tsx           # Trade row with Win/Loss buttons
 │       │   ├── TradeList.tsx           # Maps trades to TradeCards
-│       │   ├── TradeFilters.tsx        # Date range, pair, result filters
-│       │   ├── TradeSummary.tsx        # 4-stat summary bar
-│       │   └── DailyLimitWarning.tsx   # Yellow warning when limits exceeded
+│       │   ├── TradeFilters.tsx        # Date range + result filters
+│       │   └── TradeSummary.tsx        # 4-stat summary bar
 │       ├── notes/
 │       │   ├── NoteEditor.tsx          # Textarea + save button
 │       │   ├── DailyNoteCard.tsx       # Note preview card
@@ -75,16 +78,11 @@ forex-journal/
 │       │   ├── ImageUploader.tsx       # Drag & drop upload zone
 │       │   ├── ImageGallery.tsx        # Thumbnail grid + delete
 │       │   └── ImageLightbox.tsx       # Full-screen viewer + keyboard nav
-│       ├── dashboard/
-│       │   ├── StatsOverview.tsx       # Key metrics cards
-│       │   ├── EquityCurveChart.tsx    # Recharts area chart
-│       │   ├── CalendarHeatmap.tsx     # 6-month P&L heatmap
-│       │   └── RecentTrades.tsx        # Last 5 trades
-│       └── calculator/
-│           ├── RiskCalculatorForm.tsx  # Capital, risk%, SL, pair inputs
-│           ├── PositionSizeResult.tsx  # Max loss, lot size, pip value
-│           ├── ProjectionsTable.tsx    # Expected outcomes table
-│           └── PipValueTable.tsx       # Pip values reference by pair
+│       └── dashboard/
+│           ├── StatsOverview.tsx       # Key metrics cards
+│           ├── EquityCurveChart.tsx    # Recharts area chart
+│           ├── CalendarHeatmap.tsx     # 6-month P&L heatmap
+│           └── RecentTrades.tsx        # Last 5 trades
 ├── supabase-schema.sql                 # Full DB schema + RLS + storage
 ├── package.json
 ├── vite.config.ts
@@ -95,15 +93,39 @@ forex-journal/
 
 ---
 
+## Trading Rules (localStorage)
+
+Stored in `localStorage` under key `forex-journal-rules`:
+
+```typescript
+interface TradingRules {
+  balance: number              // Current account balance (auto-updates on win/loss)
+  maxDailyLossPercent: number  // Default: 2%
+  maxDailyGainPercent: number  // Default: 4%
+  maxTradesPerDay: number      // Default: 2
+  riskRewardRatio: number      // Default: 2 (1:2 risk:reward)
+}
+```
+
+**Derived values:**
+- `riskPerTrade = balance × maxDailyLossPercent / maxTradesPerDay`
+- `maxDailyLoss = balance × maxDailyLossPercent`
+- `maxDailyGain = balance × maxDailyGainPercent`
+
+**Balance auto-update:** When a trade is resolved (Win/Loss), `updateBalance(profitLoss)` adds/subtracts the P&L from the balance. All derived values recalculate automatically.
+
+---
+
 ## Database Schema
 
 ### Tables
 
 **trades**
 ```
-id (uuid PK), user_id (FK→auth.users), date, pair, direction (buy|sell),
-entry_price, exit_price?, lot_size, pips?, profit_loss?, notes?,
-stop_loss?, take_profit?, status (open|closed), created_at
+id (uuid PK), user_id (FK→auth.users), date, pair (always 'XAU/USD'),
+direction (buy|sell), entry_price, exit_price?, lot_size, pips?, profit_loss?,
+notes?, stop_loss?, take_profit?, status (open|closed),
+balance?, risk_amount?, risk_reward_ratio? (default 2), created_at
 ```
 
 **trade_images**
@@ -122,21 +144,14 @@ UNIQUE(user_id, date)
 id (uuid PK), note_id (FK→daily_notes CASCADE), image_url, storage_path, created_at
 ```
 
-**user_settings**
-```
-id (uuid PK), user_id (FK→auth.users UNIQUE), max_trades_per_day (default 2),
-daily_loss_limit (default 100), daily_gain_limit (default 200), created_at, updated_at
-```
-
 ### Relationships
 
 ```
 auth.users
 ├── trades (1:N)
 │   └── trade_images (1:N)
-├── daily_notes (1:N, unique per date)
-│   └── note_images (1:N)
-└── user_settings (1:1)
+└── daily_notes (1:N, unique per date)
+    └── note_images (1:N)
 ```
 
 ### RLS Policies
@@ -150,6 +165,14 @@ All tables enforce `auth.uid() = user_id`. Image tables use nested EXISTS checks
 - Note images: `{user_id}/notes/{date}/{timestamp}.ext`
 - Signed URLs: 1-year expiration
 
+### Migration (for existing databases)
+
+```sql
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS balance numeric;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS risk_amount numeric;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS risk_reward_ratio numeric DEFAULT 2;
+```
+
 ---
 
 ## Type Definitions
@@ -161,19 +184,20 @@ type TradeStatus = 'open' | 'closed'
 interface Trade {
   id, user_id, date, pair, direction, entry_price, exit_price?,
   lot_size, pips?, profit_loss?, notes?, stop_loss?, take_profit?,
-  status, created_at
+  status, balance?, risk_amount?, risk_reward_ratio?, created_at
 }
 type TradeInsert = Omit<Trade, 'id' | 'created_at' | 'user_id'>
 type TradeUpdate = Partial<TradeInsert>
 
+interface TradingRules {
+  balance, maxDailyLossPercent, maxDailyGainPercent, maxTradesPerDay, riskRewardRatio
+}
+
 interface TradeImage    { id, trade_id, image_url, storage_path, created_at }
 interface NoteImage     { id, note_id, image_url, storage_path, created_at }
 interface DailyNote     { id, user_id, date, content, created_at, updated_at }
-interface UserSettings  { id, user_id, max_trades_per_day, daily_loss_limit, daily_gain_limit }
-interface TradeFilters  { dateFrom?, dateTo?, pair?, result?: 'winner'|'loser'|'all' }
+interface TradeFilters  { dateFrom?, dateTo?, result?: 'winner'|'loser'|'all' }
 interface TradeStats    { totalTrades, winRate, avgPips, totalPL, winners, losers }
-interface CalculatorInputs  { capital, riskPercent, stopLossPips, pair }
-interface CalculatorResult  { maxLoss, positionSize, pipValue }
 ```
 
 ---
@@ -188,7 +212,7 @@ interface CalculatorResult  { maxLoss, positionSize, pipValue }
 | `useTradeStats(trades)` | Trade[] | `{ stats, equityCurve, dailyPL }` |
 | `useDailyNotes()` | - | `{ notes, loading, getNote, saveNote, deleteNote, fetchNotes }` |
 | `useNoteImages(noteId, date)` | note UUID + date | `{ images, loading, uploading, uploadImage, deleteImage }` |
-| `useSettings()` | - | `{ settings, loading, updateSettings }` |
+| `useSettings()` | - | `{ rules, saveRules, updateBalance, riskPerTrade, maxDailyLoss, maxDailyGain }` |
 
 ---
 
@@ -201,55 +225,57 @@ interface CalculatorResult  { maxLoss, positionSize, pipValue }
 | `/trades` | TradesPage | Protected |
 | `/trades/:id` | TradeDetailPage | Protected |
 | `/notes` | NotesPage | Protected |
-| `/calculator` | CalculatorPage | Protected |
 | `/settings` | SettingsPage | Protected |
 
 ---
 
-## Calculations
+## Calculations (XAU/USD Gold)
 
-**Pips:** `(exitPrice - entryPrice) * multiplier` (10000 for standard, 100 for JPY pairs). Negated for sell direction.
+**Contract size:** 1 standard lot = 100 troy ounces
 
-**P&L:** `pips * PIP_VALUES[pair] * lotSize`
+**SL/TP Auto-calculation:**
+```
+sl_distance = risk_amount / (lot_size × 100)
+tp_distance = sl_distance × risk_reward_ratio
+BUY:  SL = entry - sl_distance,  TP = entry + tp_distance
+SELL: SL = entry + sl_distance,  TP = entry - tp_distance
+```
 
-**Position Size:** `(capital * riskPercent / 100) / (stopLossPips * pipValue)`
+**Pips (price points):** `direction === 'buy' ? exit - entry : entry - exit`
 
-**Stats:** Computed from closed trades only. Win rate = winners / total * 100.
+**P&L:** `price_difference × lot_size × 100`
 
----
+**Example:** Balance=$10,000, risk=1% per trade ($100), lot=0.01, entry=2650.000, SELL
+- sl_distance = $100 / (0.01 × 100) = $100.00
+- tp_distance = $100.00 × 2 = $200.00
+- SL = 2750.000, TP = 2450.000
 
-## Supported Forex Pairs (25)
-
-EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, NZD/USD, USD/CAD,
-EUR/GBP, EUR/JPY, GBP/JPY, AUD/JPY, CHF/JPY, NZD/JPY,
-EUR/AUD, EUR/CAD, EUR/CHF, GBP/AUD, GBP/CAD, GBP/CHF,
-AUD/CAD, AUD/CHF, NZD/CAD, XAU/USD, XAG/USD
-
----
-
-## Pip Values (per standard lot)
-
-| Pairs | Value |
-|-------|-------|
-| EUR/USD, GBP/USD, AUD/USD, NZD/USD | $10.00 |
-| USD/JPY, EUR/JPY, GBP/JPY, AUD/JPY, CHF/JPY, NZD/JPY | $6.67 |
-| USD/CHF, EUR/CHF, GBP/CHF, AUD/CHF | $10.60 |
-| USD/CAD, EUR/CAD, GBP/CAD, AUD/CAD, NZD/CAD | $7.25 |
-| EUR/GBP | $12.50 |
-| EUR/AUD, GBP/AUD | $6.50 |
-| XAU/USD | $1.00 |
-| XAG/USD | $50.00 |
+**Stats:** Computed from closed trades only. Win rate = winners / total × 100.
 
 ---
 
 ## Key Workflows
 
 ### Trade Creation
-1. User clicks "New Trade" → modal opens
-2. DailyLimitWarning checks today's trades count and P&L vs settings
-3. User fills TradeForm (pair, direction, prices, lot size, etc.)
-4. On submit: hook auto-calculates pips + P&L if closed
-5. Inserts to Supabase, list refreshes
+1. User clicks "New Trade" (disabled if daily limits hit)
+2. Risk summary shown: balance, risk per trade, R:R ratio (from Settings)
+3. User fills: entry price, direction, lot size, status, notes
+4. SL/TP auto-calculated in real-time and shown as read-only cards
+5. On submit: saved to Supabase with pair='XAU/USD', calculated SL/TP
+
+### Trade Resolution (Win/Loss)
+1. Open trades with SL/TP show **Win** and **Loss** buttons in TradeCard
+2. **Win:** exit_price = take_profit, P&L calculated, status → closed
+3. **Loss:** exit_price = stop_loss, P&L calculated, status → closed
+4. Balance auto-updates: `balance += profitLoss`
+5. All derived values (risk per trade, daily limits) recalculate instantly
+6. Daily status bar updates (trades count, P&L today)
+
+### Daily Limits
+1. Trades page shows 4 cards: Trades Today (X/max), P&L Today, Max Loss, Gain Target
+2. If gain target reached → green banner, "New Trade" disabled
+3. If loss limit reached → red banner, "New Trade" disabled
+4. If max trades reached → amber banner, "New Trade" disabled
 
 ### Screenshot Upload (Trade)
 1. User on TradeDetail drags image onto ImageUploader
@@ -263,12 +289,6 @@ AUD/CAD, AUD/CHF, NZD/CAD, XAU/USD, XAG/USD
 3. File uploaded to `trade-screenshots/{userId}/notes/{date}/{timestamp}.ext`
 4. Signed URL generated, metadata saved to `note_images`
 
-### Daily Limits (Warning Only)
-1. Settings loaded via `useSettings`
-2. Trades page calculates today's count + P&L
-3. DailyLimitWarning compares against limits
-4. Shows yellow warning banner if exceeded (does not block)
-
 ---
 
 ## Theme / Design System
@@ -277,6 +297,7 @@ AUD/CAD, AUD/CHF, NZD/CAD, XAU/USD, XAG/USD
 - **Accent color:** Indigo (#6366f1 / #818cf8)
 - **Profit:** Green (#4ade80)
 - **Loss:** Red (#f87171)
+- **Risk/Warning:** Amber (#fbbf24)
 - **Cards:** dark-800 bg with dark-600 border
 - **Text hierarchy:** dark-100 (primary) → dark-200 → dark-300 → dark-400 (muted)
 - **Custom scrollbar:** 6px, dark styled (webkit)

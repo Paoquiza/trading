@@ -10,6 +10,7 @@ import { ImageUploader } from '../components/images/ImageUploader'
 import { ImageGallery } from '../components/images/ImageGallery'
 import { useTrade, useTrades } from '../hooks/useTrades'
 import { useTradeImages } from '../hooks/useTradeImages'
+import { useSettings } from '../hooks/useSettings'
 import { formatCurrency, formatPips, formatDate, plColor } from '../lib/formatters'
 
 export function TradeDetailPage() {
@@ -18,6 +19,7 @@ export function TradeDetailPage() {
   const { trade, loading, setTrade } = useTrade(id!)
   const { updateTrade, deleteTrade } = useTrades()
   const { images, uploading, uploadImage, deleteImage } = useTradeImages(id!)
+  const { rules, riskPerTrade } = useSettings()
   const [showEdit, setShowEdit] = useState(false)
   const [formLoading, setFormLoading] = useState(false)
 
@@ -106,15 +108,32 @@ export function TradeDetailPage() {
         </Card>
       </div>
 
+      {(trade.balance != null || trade.risk_amount != null || trade.risk_reward_ratio != null) && (
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <p className="text-xs text-dark-300">Balance</p>
+            <p className="font-mono text-white">{trade.balance != null ? formatCurrency(trade.balance) : '—'}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-dark-300">Risk Amount</p>
+            <p className="font-mono text-amber-400">{trade.risk_amount != null ? formatCurrency(trade.risk_amount) : '—'}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-dark-300">Ratio R:R</p>
+            <p className="font-mono text-white">{trade.risk_reward_ratio != null ? `1:${trade.risk_reward_ratio}` : '—'}</p>
+          </Card>
+        </div>
+      )}
+
       {(trade.stop_loss != null || trade.take_profit != null || trade.pips != null) && (
         <div className="grid grid-cols-3 gap-3">
           <Card>
             <p className="text-xs text-dark-300">Stop Loss</p>
-            <p className="font-mono text-white">{trade.stop_loss ?? '—'}</p>
+            <p className="font-mono text-red-400">{trade.stop_loss ?? '—'}</p>
           </Card>
           <Card>
             <p className="text-xs text-dark-300">Take Profit</p>
-            <p className="font-mono text-white">{trade.take_profit ?? '—'}</p>
+            <p className="font-mono text-green-400">{trade.take_profit ?? '—'}</p>
           </Card>
           <Card>
             <p className="text-xs text-dark-300">Pips</p>
@@ -140,9 +159,11 @@ export function TradeDetailPage() {
         </div>
       </div>
 
-      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Trade">
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Trade — XAU/USD">
         <TradeForm
           trade={trade}
+          rules={rules}
+          riskPerTrade={riskPerTrade}
           onSubmit={handleUpdate}
           onCancel={() => setShowEdit(false)}
           loading={formLoading}

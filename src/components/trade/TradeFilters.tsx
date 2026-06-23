@@ -1,7 +1,6 @@
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
-import { FOREX_PAIRS } from '../../lib/constants'
 import type { TradeFilters as FilterType } from '../../lib/types'
 
 interface TradeFiltersProps {
@@ -10,11 +9,6 @@ interface TradeFiltersProps {
 }
 
 export function TradeFilters({ filters, onChange }: TradeFiltersProps) {
-  const pairOptions = [
-    { label: 'All Pairs', value: '' },
-    ...FOREX_PAIRS.map(p => ({ label: p, value: p })),
-  ]
-
   const resultOptions = [
     { label: 'All Results', value: 'all' },
     { label: 'Winners', value: 'winner' },
@@ -22,7 +16,7 @@ export function TradeFilters({ filters, onChange }: TradeFiltersProps) {
   ]
 
   const clearFilters = () => {
-    onChange({ dateFrom: undefined, dateTo: undefined, pair: undefined, result: 'all' })
+    onChange({ dateFrom: undefined, dateTo: undefined, result: 'all' })
   }
 
   return (
@@ -38,12 +32,6 @@ export function TradeFilters({ filters, onChange }: TradeFiltersProps) {
         type="date"
         value={filters.dateTo ?? ''}
         onChange={e => onChange({ ...filters, dateTo: e.target.value || undefined })}
-      />
-      <Select
-        label="Pair"
-        options={pairOptions}
-        value={filters.pair ?? ''}
-        onChange={e => onChange({ ...filters, pair: e.target.value || undefined })}
       />
       <Select
         label="Result"

@@ -1,68 +1,48 @@
-import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
-import type { UserSettings } from '../lib/types'
+import { useState, useCallback } from 'react'
+import type { TradingRules } from '../lib/types'
 
-const DEFAULTS = {
-  max_trades_per_day: 2,
-  daily_loss_limit: 100,
-  daily_gain_limit: 200,
+const STORAGE_KEY = 'forex-journal-rules'
+
+const DEFAULT_RULES: TradingRules = {
+  balance: 10000,
+  maxDailyLossPercent: 2,
+  maxDailyGainPercent: 4,
+  maxTradesPerDay: 2,
+  riskRewardRatio: 2,
+}
+
+function loadRules(): TradingRules {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      return { ...DEFAULT_RULES, ...JSON.parse(stored) }
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return DEFAULT_RULES
 }
 
 export function useSettings() {
-  const { user } = useAuth()
-  const [settings, setSettings] = useState<UserSettings | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [rules, setRulesState] = useState<TradingRules>(loadRules)
 
-  const fetchSettings = useCallback(async () => {
-    if (!user) return
-    setLoading(true)
+  const saveRules = useCallback((updated: TradingRules) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+    setRulesState(updated)
+  }, [])
 
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle()
+  const riskPerTrade = Math.round(
+    (rules.balance * (rules.maxDailyLossPercent / 100) / rules.maxTradesPerDay) * 100
+  ) / 100
 
-    if (error) {
-      console.error('Error fetching settings:', error)
-      setLoading(false)
-      return
-    }
+  const maxDailyLoss = Math.round(rules.balance * (rules.maxDailyLossPercent / 100) * 100) / 100
+  const maxDailyGain = Math.round(rules.balance * (rules.maxDailyGainPercent / 100) * 100) / 100
 
-    if (data) {
-      setSettings(data as UserSettings)
-    } else {
-      // Create defaults
-      const { data: created, error: createError } = await supabase
-        .from('user_settings')
-        .insert({ user_id: user.id, ...DEFAULTS })
-        .select()
-        .single()
+  const updateBalance = useCallback((profitLoss: number) => {
+    const updated = { ...loadRules(), balance: Math.round((loadRules().balance + profitLoss) * 100) / 100 }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+    setRulesState(updated)
+  }, [])
 
-      if (createError) console.error('Error creating default settings:', createError)
-      setSettings(created as UserSettings | null)
-    }
-
-    setLoading(false)
-  }, [user])
-
-  useEffect(() => { fetchSettings() }, [fetchSettings])
-
-  const updateSettings = async (updates: Partial<Pick<UserSettings, 'max_trades_per_day' | 'daily_loss_limit' | 'daily_gain_limit'>>) => {
-    if (!settings) return null
-
-    const { data, error } = await supabase
-      .from('user_settings')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', settings.id)
-      .select()
-      .single()
-
-    if (error) { console.error('Error updating settings:', error); return null }
-    setSettings(data as UserSettings)
-    return data as UserSettings
-  }
-
-  return { settings, loading, updateSettings }
+  return { rules, saveRules, updateBalance, riskPerTrade, maxDailyLoss, maxDailyGain }
 }

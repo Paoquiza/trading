@@ -1,110 +1,122 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Save } from 'lucide-react'
-import { Card } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
+import { Card } from '../components/ui/Card'
 import { useSettings } from '../hooks/useSettings'
+import { formatCurrency } from '../lib/formatters'
 
 export function SettingsPage() {
-  const { settings, loading, updateSettings } = useSettings()
-  const [maxTrades, setMaxTrades] = useState(2)
-  const [lossLimit, setLossLimit] = useState(100)
-  const [gainLimit, setGainLimit] = useState(200)
-  const [saving, setSaving] = useState(false)
+  const { rules, saveRules } = useSettings()
+  const [form, setForm] = useState(rules)
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    if (settings) {
-      setMaxTrades(settings.max_trades_per_day)
-      setLossLimit(settings.daily_loss_limit)
-      setGainLimit(settings.daily_gain_limit)
-    }
-  }, [settings])
-
-  const handleSave = async () => {
-    setSaving(true)
-    setSaved(false)
-    await updateSettings({
-      max_trades_per_day: maxTrades,
-      daily_loss_limit: lossLimit,
-      daily_gain_limit: gainLimit,
-    })
-    setSaving(false)
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    saveRules(form)
     setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setTimeout(() => setSaved(false), 2000)
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-16">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent-400 border-t-transparent" />
-      </div>
-    )
-  }
+  const previewRiskPerTrade = Math.round(
+    (form.balance * (form.maxDailyLossPercent / 100) / form.maxTradesPerDay) * 100
+  ) / 100
+
+  const previewMaxLoss = Math.round(form.balance * (form.maxDailyLossPercent / 100) * 100) / 100
+  const previewMaxGain = Math.round(form.balance * (form.maxDailyGainPercent / 100) * 100) / 100
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h1 className="text-2xl font-bold text-white">Settings</h1>
+    <div className="space-y-6 max-w-2xl">
+      <h1 className="text-2xl font-bold text-white">Trading Rules</h1>
 
-      <Card>
-        <div className="space-y-5">
-          <h2 className="text-lg font-semibold text-white">Daily Limits</h2>
-          <p className="text-sm text-dark-300">
-            Set your daily trading limits. You'll see a warning when limits are reached, but trades won't be blocked.
-          </p>
+      <form onSubmit={handleSave} className="space-y-6">
+        <Card>
+          <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-4">Capital</h2>
+          <Input
+            label="Balance ($)"
+            type="number"
+            step="any"
+            min="0"
+            value={form.balance.toString()}
+            onChange={e => setForm({ ...form, balance: parseFloat(e.target.value) || 0 })}
+            required
+          />
+        </Card>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-1.5">
-              Max trades per day
-            </label>
+        <Card>
+          <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-4">Risk Management</h2>
+          <div className="grid grid-cols-2 gap-4">
             <Input
+              label="Max Daily Loss (%)"
               type="number"
-              min={1}
-              max={50}
-              value={maxTrades}
-              onChange={e => setMaxTrades(Number(e.target.value))}
+              step="0.1"
+              min="0.1"
+              max="100"
+              value={form.maxDailyLossPercent.toString()}
+              onChange={e => setForm({ ...form, maxDailyLossPercent: parseFloat(e.target.value) || 0 })}
+              required
+            />
+            <Input
+              label="Max Daily Gain (%)"
+              type="number"
+              step="0.1"
+              min="0.1"
+              max="100"
+              value={form.maxDailyGainPercent.toString()}
+              onChange={e => setForm({ ...form, maxDailyGainPercent: parseFloat(e.target.value) || 0 })}
+              required
+            />
+            <Input
+              label="Max Trades / Day"
+              type="number"
+              step="1"
+              min="1"
+              max="20"
+              value={form.maxTradesPerDay.toString()}
+              onChange={e => setForm({ ...form, maxTradesPerDay: parseInt(e.target.value) || 1 })}
+              required
+            />
+            <Input
+              label="Ratio R:R (reward per 1 risk)"
+              type="number"
+              step="0.1"
+              min="0.1"
+              value={form.riskRewardRatio.toString()}
+              onChange={e => setForm({ ...form, riskRewardRatio: parseFloat(e.target.value) || 1 })}
+              required
             />
           </div>
+        </Card>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-1.5">
-              Daily loss limit ($)
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={10}
-              value={lossLimit}
-              onChange={e => setLossLimit(Number(e.target.value))}
-            />
+        <Card>
+          <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-4">Preview</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-dark-300">Max Loss Diario</p>
+              <p className="text-lg font-mono text-red-400">-{formatCurrency(previewMaxLoss)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-300">Gain Target Diario</p>
+              <p className="text-lg font-mono text-green-400">+{formatCurrency(previewMaxGain)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-300">Risk por Trade</p>
+              <p className="text-lg font-mono text-amber-400">{formatCurrency(previewRiskPerTrade)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-300">Gain por Trade (si wins)</p>
+              <p className="text-lg font-mono text-green-400">{formatCurrency(previewRiskPerTrade * form.riskRewardRatio)}</p>
+            </div>
           </div>
+        </Card>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-1.5">
-              Daily gain limit ($)
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={10}
-              value={gainLimit}
-              onChange={e => setGainLimit(Number(e.target.value))}
-            />
-          </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button onClick={handleSave} disabled={saving}>
-              <span className="flex items-center gap-2">
-                <Save size={16} />
-                {saving ? 'Saving...' : 'Save Settings'}
-              </span>
-            </Button>
-            {saved && (
-              <span className="text-green-400 text-sm">Settings saved!</span>
-            )}
-          </div>
+        <div className="flex items-center gap-3">
+          <Button type="submit">
+            <span className="flex items-center gap-2"><Save size={16} /> Save Rules</span>
+          </Button>
+          {saved && <span className="text-green-400 text-sm">Saved!</span>}
         </div>
-      </Card>
+      </form>
     </div>
   )
 }
